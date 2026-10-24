@@ -4,3 +4,6 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+clap = "4.6.7"
+oas3 = { version = "0.22.0", features = ["yaml-spec"] }
+regex = "1.13.1"
