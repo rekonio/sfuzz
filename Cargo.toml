@@ -7,3 +7,4 @@ edition = "2024"
 clap = "4.6.7"
 oas3 = { version = "0.22.0", features = ["yaml-spec"] }
 regex = "1.13.1"
+url = "2.5.8"
