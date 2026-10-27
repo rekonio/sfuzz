@@ -1,0 +1,211 @@
+openapi: 3.2.0
+info:
+  title: Demo API for Simple Fuzzer
+  description: Use by the Simple Fuzzer for demo, testing and feedback.
+  version: 0.0.1
+
+servers:
+  - url: http://localhost:8080
+
+paths:
+  /customers:
+    post:
+      summary: Create customer
+      requestBody:
+        description: Customer to create
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CustomerRequest"
+      responses:
+        "200":
+          description: OK
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "5XX":
+          $ref: "#/components/responses/ServerFailed"
+  /customers/{id}:
+    get:
+      summary: Return specific customer
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: age
+          in: query
+          schema:
+            type: number
+        - name: region
+          in: query
+          schema:
+            type: string
+            example: "Paris"
+        - name: dob
+          in: query
+          schema:
+            type: string
+            format: datetime
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Customer"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "5XX":
+          $ref: "#/components/responses/ServerFailed"
+    delete:
+      summary: Delete given customer
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: OK
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "5XX":
+          $ref: "#/components/responses/ServerFailed"
+  /books:
+    post:
+      summary: Create book
+      requestBody:
+        description: Book to create
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BookRequest"
+      responses:
+        "200":
+          description: OK
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "5XX":
+          $ref: "#/components/responses/ServerFailed"
+  /books/{id}:
+    get:
+      summary: Return specific book
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Book"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "5XX":
+          $ref: "#/components/responses/ServerFailed"
+    delete:
+      summary: Delete given book
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: OK
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "5XX":
+          $ref: "#/components/responses/ServerFailed"
+
+components:
+  schemas:
+    BookRequest:
+      type: object
+      required:
+        - id
+        - storage_provider
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+    CustomerRequest:
+      type: object
+      required:
+        - id
+        - name
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+    Book:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+    Customer:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+    Error:
+      type: object
+      properties:
+        message:
+          type: string
+      required:
+        - message
+  responses:
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    BadRequest:
+      description: Bad request from client
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    ServerFailed:
+      description: Serve failed in the range of 5xx
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"

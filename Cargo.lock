@@ -489,6 +489,7 @@ dependencies = [
  "clap",
  "oas3",
  "regex",
+ "serde_json",
  "url",
 ]
 

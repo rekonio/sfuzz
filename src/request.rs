@@ -135,10 +135,16 @@ mod tests {
             .collect();
         assert_eq!(body_candidates.len(), 2);
         let item = body_candidates.get(0).unwrap();
-        assert_eq!("https://api.com/shop/customers/john?age=29&q=", item.url.to_string());
+        assert_eq!(
+            "https://api.com/shop/customers/john?age=29&q=",
+            item.url.to_string()
+        );
         assert_eq!(r#"{"one": FUZZ1NUM, "two": "2", "three": "a"}"#, item.body);
         let item = body_candidates.get(1).unwrap();
-        assert_eq!("https://api.com/shop/customers/john?age=29&q=", item.url.to_string());
+        assert_eq!(
+            "https://api.com/shop/customers/john?age=29&q=",
+            item.url.to_string()
+        );
         assert_eq!(r#"{"one": 1, "two": "2", "three": "FUZZaSTR"}"#, item.body);
     }
 
