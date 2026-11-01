@@ -1,10 +1,15 @@
+use std::fmt::Display;
+use std::fs::File;
+use std::io::{BufWriter, Write};
 use oas3::OpenApiV3Spec;
 use oas3::spec::{
     ParameterIn, ObjectOrReference, ObjectSchema, Schema, SchemaType as Type, SchemaTypeSet as TypeSet, Spec,
 };
 use serde_json::{Map, Value, json};
 
-pub fn list_operations(spec: &OpenApiV3Spec) {
+pub fn generate_fuzz_template(spec: &OpenApiV3Spec, out: &mut impl Write, host: Option<&str>) {
+    let host = host.unwrap_or("http://localhost:8080");
+
     for (path, method, op) in spec.operations() {
         let mut path_params: Vec<(String, String)> = vec![];
         let mut query_params: Vec<(String, String)> = vec![];
@@ -40,12 +45,24 @@ pub fn list_operations(spec: &OpenApiV3Spec) {
             }
         };
 
-        println!("{method} {path}");
-        println!("  path:  {path_params:?}");
-        println!("  query: {query_params:?}");
-        if let Some(b) = body {
-            println!("  body:  {b}");
+        write!(out, "{method}").unwrap();
+        let mut path = path.clone();
+        for (key, value) in path_params {
+            path = path.replace(&format!("{{{key}}}"), &value);
         }
+        write!(out, " {host}{path}").unwrap();
+
+        if !query_params.is_empty() {
+            let query: String = url::form_urlencoded::Serializer::new(String::new())
+                .extend_pairs(&query_params)
+                .finish();
+            write!(out, "?{query}").unwrap();
+        }
+        if let Some(b) = body {
+            write!(out, " {b}").unwrap();
+        }
+        writeln!(out).unwrap();
+        out.flush().unwrap();
     }
 }
 
@@ -66,12 +83,8 @@ fn resolve_schema(schema: &Schema, spec: &Spec, depth: usize) -> Value {
 }
 
 fn resolve_object(object: &ObjectSchema, spec: &Spec, depth: usize) -> Value {
-    if let Some(ex) = &object.example {
-        return ex.clone();
-    }
-
     let kind = match &object.schema_type {
-        Some(TypeSet::Single(t)) => Some(t.clone()),
+        Some(TypeSet::Single(t)) => Some(*t),
         Some(TypeSet::Multiple(ts)) => ts.first().cloned(),
         None if !object.properties.is_empty() => Some(Type::Object),
         None => None,
@@ -89,15 +102,39 @@ fn resolve_object(object: &ObjectSchema, spec: &Spec, depth: usize) -> Value {
             Some(item) => json!([resolve_schema(item, spec, depth + 1)]),
             None => json!([]),
         },
-        Some(Type::String) => match object.format.as_deref() {
-            Some("uuid") => json!("deada555-beef-4000-8000-000000000000"),
-            Some("date-time") => json!("2026-01-01T00:00:00Z"),
-            _ => json!("happy"),
-        },
-        Some(Type::Integer) => json!(42),
-        Some(Type::Number) => json!(42.0),
-        Some(Type::Boolean) => json!(false),
-        Some(Type::Null) | None => Value::Null,
+        other => {
+            let example = match &object.example {
+                Some(Value::String(s)) => s.clone(),
+                Some(other) => other.to_string(),
+                None => String::new(),
+            };
+            let keyword = FuzzKeyword{kind: other, example, format: object.format.clone()};
+            json!(format!("{keyword}"))
+        }
+    }
+}
+
+
+struct FuzzKeyword {
+    kind: Option<Type>,
+    format: Option<String>,
+    example: String,
+}
+
+impl Display for FuzzKeyword {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let prefix = format!("FUZZ{}", self.example);
+        match self.kind {
+            Some(Type::String) => match self.format.as_deref() {
+                Some("uuid") => write!(f, "{prefix}UID"),
+                Some("date-time") => write!(f, "{prefix}DTE"),
+                _ => write!(f, "{prefix}STR"),
+            },
+            Some(Type::Integer) | Some(Type::Number) => write!(f, "{prefix}NUM"),
+            Some(Type::Boolean) => write!(f, "{prefix}BOL"),
+            Some(Type::Null) | None => write!(f, "FUZZNUL"),
+            _ => write!(f, "FUZZUKN"),
+        }
     }
 }
 
@@ -105,5 +142,22 @@ fn to_param_string(v: &Value) -> String {
     match v {
         Value::String(s) => s.clone(),
         other => other.to_string(),
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use std::{fs};
+    use crate::spec::generate_fuzz_template;
+
+    #[test]
+    fn test_generate_fuzz_file() {
+        let input = fs::read_to_string("src/testdata/basic.input.yaml").unwrap();
+        let doc = oas3::from_yaml(input).expect("cannot parse spec");
+        let expected = fs::read_to_string("src/testdata/basic.output.txt").unwrap();
+        let mut buf = Vec::new();
+        generate_fuzz_template(&doc, &mut buf, None);
+        let actual = String::from_utf8(buf).unwrap();
+        assert_eq!(actual, expected);
     }
 }

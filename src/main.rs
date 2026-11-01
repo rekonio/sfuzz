@@ -2,6 +2,7 @@ mod request;
 mod spec;
 mod tokens;
 
+use std::io;
 use clap::{Command, arg};
 use oas3::spec::{ObjectOrReference, Schema};
 
@@ -15,5 +16,5 @@ fn main() {
     let yaml = std::fs::read_to_string(file).unwrap();
     let doc = oas3::from_yaml(yaml).expect("cannot parse spec");
 
-    spec::list_operations(&doc)
+    spec::generate_fuzz_template(&doc, &mut io::stderr(), None);
 }

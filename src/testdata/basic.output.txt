@@ -1,0 +1,6 @@
+POST http://localhost:8080/customers {"id":"FUZZUID","name":"FUZZSTR","ref":"FUZZ128.0NUM"}
+GET http://localhost:8080/customers/FUZZUID?age=FUZZ45NUM&region=FUZZParisSTR&dob=FUZZ2006-04-23STR
+DELETE http://localhost:8080/customers/FUZZUID
+POST http://localhost:8080/books {"id":"FUZZUID","name":"FUZZSTR","quantity":"FUZZ128NUM"}
+GET http://localhost:8080/books/FUZZSTR/FUZZUID
+DELETE http://localhost:8080/books/FUZZSTR/FUZZUID

@@ -41,6 +41,7 @@ paths:
           in: query
           schema:
             type: number
+            example: 45
         - name: region
           in: query
           schema:
@@ -51,6 +52,7 @@ paths:
           schema:
             type: string
             format: datetime
+            example: 2006-04-23
       responses:
         "200":
           description: Success
@@ -101,9 +103,9 @@ paths:
           $ref: "#/components/responses/NotFound"
         "5XX":
           $ref: "#/components/responses/ServerFailed"
-  /books/{id}:
+  /books/{category}/{id}:
     get:
-      summary: Return specific book
+      summary: Return specific book from a category
       parameters:
         - name: id
           in: path
@@ -111,6 +113,11 @@ paths:
           schema:
             type: string
             format: uuid
+        - name: category
+          in: path
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: Success
@@ -133,6 +140,11 @@ paths:
           schema:
             type: string
             format: uuid
+        - name: category
+          in: path
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: OK
@@ -149,13 +161,15 @@ components:
       type: object
       required:
         - id
-        - storage_provider
       properties:
         id:
           type: string
           format: uuid
         name:
           type: string
+        quantity:
+          type: integer
+          example: 128
     CustomerRequest:
       type: object
       required:
@@ -167,6 +181,9 @@ components:
           format: uuid
         name:
           type: string
+        ref:
+          type: number
+          example: 128.0
     Book:
       type: object
       properties:
