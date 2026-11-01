@@ -1,3 +1,6 @@
+use std::error::Error;
+use std::fmt;
+use std::str::FromStr;
 use crate::tokens::Tokenized;
 use url::Url;
 
@@ -15,6 +18,7 @@ pub struct RequestCandidate {
 }
 pub struct Request {
     pub origin: String,
+    pub method: String,
     pub path: Tokenized,
     pub query: Tokenized,
     pub body: Tokenized,
@@ -68,14 +72,78 @@ impl Request {
     }
 }
 
-pub fn parse(url: &str, body: Option<&str>) -> Result<Request, url::ParseError> {
-    let url = Url::parse(url)?;
-    Ok(Request {
-        origin: url.origin().ascii_serialization(),
-        path: Tokenized::new(Some(url.path())),
-        query: Tokenized::new(url.query()),
-        body: Tokenized::new(body),
-    })
+
+#[derive(Debug)]
+struct RequestLine {
+    method: String,
+    url: Url,
+    body: String,
+}
+
+impl RequestLine {
+    pub fn to_request(&self) -> Request {
+        Request {
+            origin: self.url.origin().ascii_serialization(),
+            method: self.method.to_string(),
+            path: Tokenized::new(Some(self.url.path())),
+            query: Tokenized::new(self.url.query()),
+            body: Tokenized::new(Some(&self.body)),
+        }
+    }
+}
+
+impl FromStr for RequestLine {
+    type Err = ParseError;
+    fn from_str(line: &str) -> Result<Self, Self::Err> {
+        let line = line.trim();
+        if line.is_empty() {
+            return Err(ParseError::Empty);
+        }
+
+        let (method, rest) = line
+            .split_once(char::is_whitespace)
+            .ok_or(ParseError::MissingUrl)?;
+
+        let rest = rest.trim_start();
+        let (url, body) = rest.split_once(char::is_whitespace).unwrap_or((rest, ""));
+
+        let url = Url::parse(url).map_err(|source| ParseError::InvalidUrl {
+            url: url.to_string(),
+            source,
+        })?;
+
+        Ok(RequestLine {
+            method: method.to_string(),
+            url,
+            body: body.trim().to_string(),
+        })
+    }
+}
+
+#[derive(Debug)]
+pub enum ParseError {
+    Empty,
+    MissingUrl,
+    InvalidUrl { url: String, source: url::ParseError },
+}
+
+impl fmt::Display for ParseError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            ParseError::Empty => write!(f, "empty line"),
+            ParseError::MissingUrl => write!(f, "missing URL"),
+            ParseError::InvalidUrl { url, source } => write!(f, "invalid URL {url:?}: {source}"),
+        }
+    }
+}
+
+impl Error for ParseError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match self {
+            ParseError::InvalidUrl { source, .. } => Some(source),
+            _ => None,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -83,14 +151,17 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_generate_candidate() {
-        let request = parse(
-            "https://api.com/shop/FUZZcustomersSTR/FUZZjohnSTR?age=FUZZ29NUM&q=FUZZSTR",
-            Some(r#"{"one": FUZZ1NUM, "two": "2", "three": "FUZZaSTR"}"#),
-        )
-        .unwrap();
+    fn rejects_invalid_url() {
+        let res = "GET not-a-url".parse::<RequestLine>();
+        assert!(matches!(res, Err(ParseError::InvalidUrl { .. })));
+    }
+    #[test]
+    fn generate_candidate() {
+        let request = RequestLine::from_str(
+            r#"GET https://api.com/shop/FUZZcustomersSTR/FUZZjohnSTR?age=FUZZ29NUM&q=FUZZSTR {"one": FUZZ1NUM, "two": "2", "three": "FUZZaSTR"}"#
+        ).unwrap();
 
-        let candidates = request.generate_candidates();
+        let candidates = request.to_request().generate_candidates();
         assert_eq!(candidates.len(), 6);
 
         let path_candidates: Vec<_> = candidates
@@ -149,10 +220,11 @@ mod tests {
     }
 
     #[test]
-    fn test_parse() {
-        let u = "https://api.com/shop/FUZZjohnSTR/FUZZSTR?age=FUZZ29NUM&q=FUZZSTR";
-        let body = "{\"one\": FUZZ1NUM, \"two\": \"2\"}";
-        let request = parse(u, Some(body)).unwrap();
+    fn parse_request() {
+        let body = r#"{"one": FUZZ1NUM, "two": "2"}"#;
+        let u = format!("POST https://api.com/shop/FUZZjohnSTR/FUZZSTR?age=FUZZ29NUM&q=FUZZSTR {}", body);
+        let request = RequestLine::from_str(&u).unwrap().to_request();
+        assert_eq!(request.method, "POST");
         assert_eq!(request.path.size(), 2);
         assert_eq!(request.path.text, "/shop/FUZZjohnSTR/FUZZSTR");
         assert_eq!(request.query.size(), 2);
@@ -162,8 +234,9 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_empty() {
-        let request = parse("https://example.com", None).unwrap();
+    fn parse_empty() {
+        let request = RequestLine::from_str("PUT https://example.com").unwrap().to_request();
+        assert_eq!(request.method, "PUT");
         assert_eq!(request.path.size(), 0);
         assert_eq!(request.path.text, "/");
         assert_eq!(request.query.size(), 0);
