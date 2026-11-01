@@ -1,9 +1,9 @@
 mod spec;
 
 use std::error::Error;
-use std::io;
 use std::time::Duration;
 use clap::{Command, arg};
+use sfuzz::request::{RequestLine, Request};
 
 fn main() -> Result<(), Box<dyn Error>> {
     let matches = Command::new("sfuzz")
@@ -15,7 +15,22 @@ fn main() -> Result<(), Box<dyn Error>> {
     let yaml = load_spec(spec)?;
     let doc = oas3::from_yaml(yaml).expect("cannot parse spec");
 
-    spec::generate_fuzz_template(&doc, &mut io::stderr(), None);
+
+    let mut buf: Vec<u8> = Vec::new();
+    spec::generate_fuzz_template(&doc, &mut buf, None);
+
+    let content = String::from_utf8(buf)?;
+    let requests: Vec<Request> = content
+        .lines()
+        .filter(|l| !l.trim().is_empty())
+        .map(|l| l.parse::<RequestLine>().map(Request::from))
+        .collect::<Result<_, _>>()?;
+
+    for r in requests {
+        for c in r.generate_candidates() {
+            println!("{}", c)
+        }
+    }
 
     Ok(())
 }

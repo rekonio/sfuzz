@@ -1,5 +1,6 @@
 use std::error::Error;
 use std::fmt;
+use std::fmt::Display;
 use std::str::FromStr;
 use crate::tokens::Tokenized;
 use url::Url;
@@ -16,6 +17,13 @@ pub struct RequestCandidate {
     url: Url,
     body: String,
 }
+
+impl Display for RequestCandidate {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{} {} {}", self.method, self.url, self.body)
+    }
+}
+
 pub struct Request {
     pub origin: String,
     pub method: String,
@@ -39,7 +47,7 @@ impl Request {
             url.set_query(Some(&self.query.replace(Some(i))));
             candidates.push(RequestCandidate {
                 kind: CandidateKind::Query,
-                method: "GET".to_string(),
+                method: self.method.to_string(),
                 url,
                 body: happy_body.to_string(),
             })
@@ -74,20 +82,20 @@ impl Request {
 
 
 #[derive(Debug)]
-struct RequestLine {
+pub struct RequestLine {
     method: String,
     url: Url,
     body: String,
 }
 
-impl RequestLine {
-    pub fn to_request(&self) -> Request {
+impl From<RequestLine> for Request {
+    fn from(l: RequestLine) -> Self {
         Request {
-            origin: self.url.origin().ascii_serialization(),
-            method: self.method.to_string(),
-            path: Tokenized::new(Some(self.url.path())),
-            query: Tokenized::new(self.url.query()),
-            body: Tokenized::new(Some(&self.body)),
+            origin: l.url.origin().ascii_serialization(),
+            method: l.method.to_string(),
+            path: Tokenized::new(Some(l.url.path())),
+            query: Tokenized::new(l.url.query()),
+            body: Tokenized::new(Some(&l.body)),
         }
     }
 }
@@ -157,11 +165,11 @@ mod tests {
     }
     #[test]
     fn generate_candidate() {
-        let request = RequestLine::from_str(
+        let request: Request = RequestLine::from_str(
             r#"GET https://api.com/shop/FUZZcustomersSTR/FUZZjohnSTR?age=FUZZ29NUM&q=FUZZSTR {"one": FUZZ1NUM, "two": "2", "three": "FUZZaSTR"}"#
-        ).unwrap();
+        ).unwrap().into();
 
-        let candidates = request.to_request().generate_candidates();
+        let candidates = request.generate_candidates();
         assert_eq!(candidates.len(), 6);
 
         let path_candidates: Vec<_> = candidates
@@ -223,7 +231,7 @@ mod tests {
     fn parse_request() {
         let body = r#"{"one": FUZZ1NUM, "two": "2"}"#;
         let u = format!("POST https://api.com/shop/FUZZjohnSTR/FUZZSTR?age=FUZZ29NUM&q=FUZZSTR {}", body);
-        let request = RequestLine::from_str(&u).unwrap().to_request();
+        let request: Request = RequestLine::from_str(&u).unwrap().into();
         assert_eq!(request.method, "POST");
         assert_eq!(request.path.size(), 2);
         assert_eq!(request.path.text, "/shop/FUZZjohnSTR/FUZZSTR");
@@ -235,7 +243,7 @@ mod tests {
 
     #[test]
     fn parse_empty() {
-        let request = RequestLine::from_str("PUT https://example.com").unwrap().to_request();
+        let request: Request = RequestLine::from_str("PUT https://example.com").unwrap().into();
         assert_eq!(request.method, "PUT");
         assert_eq!(request.path.size(), 0);
         assert_eq!(request.path.text, "/");
