@@ -1,6 +1,5 @@
 use std::fmt::Display;
-use std::fs::File;
-use std::io::{BufWriter, Write};
+use std::io::{Write};
 use oas3::OpenApiV3Spec;
 use oas3::spec::{
     ParameterIn, ObjectOrReference, ObjectSchema, Schema, SchemaType as Type, SchemaTypeSet as TypeSet, Spec,
